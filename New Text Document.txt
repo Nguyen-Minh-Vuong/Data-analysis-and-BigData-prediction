@@ -1,0 +1,110 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox, simpledialog
+from tkinter import ttk
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from datetime import datetime
+import numpy as np
+
+class DataViewerApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Data Viewer App")
+
+        self.df = pd.DataFrame()
+        self.columns = []
+        self.records = []
+
+        self.file_path_label = tk.Label(root, text="Đường dẫn tập tin:")
+        self.file_path_label.pack()
+
+        self.browse_button = tk.Button(root, text="Chọn tập tin", command=self.browse_file)
+        self.browse_button.pack()
+
+        self.show_data_button = tk.Button(root, text="Hiển thị dữ liệu", command=self.show_data)
+        self.show_data_button.pack()
+
+        self.predict_button = tk.Button(root, text="Dự đoán Volt", command=self.predict_volt)
+        self.predict_button.pack()
+
+        self.tree = ttk.Treeview(root)
+        self.tree.pack()
+
+    def browse_file(self):
+        file_path = filedialog.askopenfilename()
+        self.file_path_label.config(text=f"Đường dẫn tập tin: {file_path}")
+        self.file_path = file_path
+
+    def show_data(self):
+        try:
+            self.df = pd.read_excel(self.file_path)
+            self.columns = self.df.columns.tolist()
+            self.records = self.df.to_dict(orient="records")
+
+            self.tree["columns"] = self.columns
+
+            for row in self.tree.get_children():
+                self.tree.delete(row)
+
+            for i, record in enumerate(self.records, start=1):
+                self.tree.insert("", "end", values=[i] + [record[col] for col in self.columns])
+
+            self.show_plot()
+
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Có lỗi xảy ra: {str(e)}")
+
+    def show_plot(self):
+        if 'Date' in self.df.columns and 'Volt' in self.df.columns:
+         plt.figure()
+         plt.scatter(self.df['Date'], self.df['Volt'], s=10, c='blue', alpha=0.5)
+         plt.xlabel('Ngày')
+         plt.ylabel('Điện áp (Volt)')
+         plt.title('Biểu đồ Điện áp theo Ngày')
+         plt.gca().xaxis.set_major_formatter(DateFormatter('%Y-%m-%d'))
+         plt.xticks(rotation=45)
+         plt.tight_layout()
+         plt.gca().xaxis.set_major_locator(plt.MaxNLocator(nbins=15))
+        
+             # Tìm giá trị điện áp cao nhất và thấp nhất cùng với ngày tương ứng
+         max_volt = self.df['Volt'].max()
+         min_volt = self.df['Volt'].min()
+         max_date = self.df[self.df['Volt'] == max_volt]['Date'].iloc[0]
+         min_date = self.df[self.df['Volt'] == min_volt]['Date'].iloc[0]
+
+          # Thêm chú thích cho giá trị điện áp cao nhất và thấp nhất
+         plt.annotate(f'Max: {max_volt}V', xy=(max_date, max_volt), xytext=(max_date, max_volt+5),arrowprops=dict(facecolor='black', shrink=0.05), ha='center')
+         plt.annotate(f'Min: {min_volt}V', xy=(min_date, min_volt), xytext=(min_date, min_volt-5),arrowprops=dict(facecolor='red', shrink=0.05), ha='center')
+         plt.show()
+        else:
+            messagebox.showwarning("Cảnh báo", "Không có cột 'Date' hoặc 'Volt' trong dữ liệu.")
+
+
+    def predict_volt(self):
+        if 'Date' in self.df.columns and 'Volt' in self.df.columns:
+            self.df['Date'] = pd.to_datetime(self.df['Date'])
+            self.df['Date_ordinal'] = self.df['Date'].apply(lambda x: x.toordinal())
+
+            X = self.df[['Date_ordinal']]
+            y = self.df['Volt']
+
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+            model = LinearRegression()
+            model.fit(X_train, y_train)
+
+            date_input = simpledialog.askstring("Input", "Nhập ngày để dự đoán (YYYY-MM-DD):")
+            date_input = datetime.strptime(date_input, '%Y-%m-%d').toordinal()
+
+            predicted_volt = model.predict([[date_input]])
+            messagebox.showinfo("Kết quả dự đoán", f"Dự đoán Volt cho ngày {date_input} là: {predicted_volt[0]}")
+        else:
+                        messagebox.showwarning("Cảnh báo", "Không có cột 'Date' hoặc 'Volt' trong dữ liệu.")
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = DataViewerApp(root)
+    root.mainloop()
+
